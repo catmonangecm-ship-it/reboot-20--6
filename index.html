@@ -113,12 +113,23 @@
             <p class="text-gray-300 mb-4">
                 Montant en USDT pour le trading automatique
                 <br />
-                <span class="text-sm text-gray-400">Solde: <span id="availableBalance">0</span> USDT</span>
+                <span class="text-sm text-gray-400">Solde disponible: <span id="availableBalance" class="font-bold text-green-400">0</span> USDT</span>
             </p>
-            <div class="flex gap-4">
+            <div class="flex gap-4 mb-3">
                 <input type="number" id="capitalInput" placeholder="Ex: 50" step="10" class="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-400">
                 <button onclick="setCapital()" class="px-8 py-3 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 rounded-lg font-semibold transition-all">
                     Valider
+                </button>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="setMaxCapital()" class="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition-all">
+                    💯 Utiliser 100%
+                </button>
+                <button onclick="setHalfCapital()" class="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition-all">
+                    ➗ Utiliser 50%
+                </button>
+                <button onclick="syncWalletBalance()" class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition-all">
+                    🔄 Actualiser
                 </button>
             </div>
         </div>
@@ -559,6 +570,13 @@
                 console.log('💰 BNB:', state.balanceBNB);
                 console.log('💵 USDT:', state.balanceUSDT);
                 
+                // Pré-remplir le capital avec le solde USDT disponible
+                const usdtAmount = parseFloat(state.balanceUSDT);
+                if (usdtAmount > 0) {
+                    document.getElementById('capitalInput').value = Math.floor(usdtAmount);
+                    console.log('💡 Capital suggéré:', Math.floor(usdtAmount), 'USDT');
+                }
+                
                 updateUI();
                 fetchCryptoList();
             } catch (error) {
@@ -888,6 +906,59 @@
             
             updateUI();
             alert(`✅ Capital défini: ${capital} USDT`);
+        }
+
+        function setMaxCapital() {
+            const balance = parseFloat(state.balanceUSDT);
+            if (balance > 0) {
+                document.getElementById('capitalInput').value = Math.floor(balance * 100) / 100;
+                console.log('💯 Capital défini à 100%:', balance, 'USDT');
+            } else {
+                alert('⚠️ Aucun solde USDT disponible');
+            }
+        }
+
+        function setHalfCapital() {
+            const balance = parseFloat(state.balanceUSDT);
+            if (balance > 0) {
+                document.getElementById('capitalInput').value = Math.floor(balance * 50) / 100;
+                console.log('➗ Capital défini à 50%:', balance / 2, 'USDT');
+            } else {
+                alert('⚠️ Aucun solde USDT disponible');
+            }
+        }
+
+        async function syncWalletBalance() {
+            if (!state.isConnected && !state.wallet) {
+                alert('❌ Connectez d\'abord votre wallet');
+                return;
+            }
+
+            try {
+                const address = state.wallet ? state.wallet.address : state.account;
+                const provider = state.wallet ? state.wallet.provider : state.provider;
+                
+                console.log('🔄 Synchronisation du solde...');
+                
+                const bnbBalance = await provider.getBalance(address);
+                state.balanceBNB = ethers.utils.formatEther(bnbBalance);
+                
+                const usdtBalance = await getTokenBalance(USDT_CONTRACT, address);
+                state.balanceUSDT = ethers.utils.formatUnits(usdtBalance, 18);
+                
+                console.log('✅ Soldes mis à jour:');
+                console.log('💰 BNB:', state.balanceBNB);
+                console.log('💵 USDT:', state.balanceUSDT);
+                
+                document.getElementById('availableBalance').textContent = parseFloat(state.balanceUSDT).toFixed(2);
+                document.getElementById('bnbBalance').textContent = parseFloat(state.balanceBNB).toFixed(4);
+                document.getElementById('usdtBalance').textContent = parseFloat(state.balanceUSDT).toFixed(2);
+                
+                alert(`✅ Soldes actualisés\n\nBNB: ${parseFloat(state.balanceBNB).toFixed(4)}\nUSDT: ${parseFloat(state.balanceUSDT).toFixed(2)}`);
+            } catch (error) {
+                console.error('❌ Erreur synchronisation:', error);
+                alert('❌ Erreur lors de la synchronisation: ' + error.message);
+            }
         }
 
         function updateTradeAmount() {
@@ -1276,6 +1347,7 @@
                 
                 // IMPORTANT: USDT sur BSC utilise 18 décimales (pas 6 comme sur Ethereum!)
                 // Utiliser parseEther qui gère correctement les 18 décimales
+                const usdtDecimals = 18;
                 const amountInWeiCorrect = ethers.utils.parseEther(amountUSDT.toString());
                 
                 console.log('💰 Montant USDT à échanger:', amountUSDT.toFixed(2), 'USDT');
